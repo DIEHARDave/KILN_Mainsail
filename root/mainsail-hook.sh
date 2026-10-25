@@ -26,10 +26,19 @@
 # nginx already runs the same config. Names are prefixed (ms_): it runs
 # inside S64ad5x-camera's start().
 #
+# Kiln OS's own update entries ("Kiln OS", klipper, moonraker) have
+# configured_type kiln_os / kiln_app. Fluidd lists any type, Mainsail
+# drops the ones it doesn't know. ms_patch edits Mainsail's bundle so it
+# stores them as web entries (version > version, Update button, release
+# link from remote_url). Mainsail's own updates replace the bundle: the
+# watcher patches the new one (index.html's inode changes). On the
+# Mainsail port /assets/ is revalidated instead of cached for 30 days, so
+# browsers pick up the patched file.
+#
 # "mainsail-hook.sh off": back to Kiln's own nginx (uninstall.sh).
 #####################################################################
 
-MS_HOOK_VERSION=2
+MS_HOOK_VERSION=3
 
 MS_ROOT=/data/ad5x/web/mainsail
 MS_KILN_CONF=/etc/nginx/nginx.conf
@@ -39,8 +48,52 @@ MS_NGINX=/usr/sbin/nginx
 MS_VARS=/home/klipper/printer_data/config/variables.cfg
 MS_HOOK=/data/ad5x/mainsail-hook.sh
 MS_WATCH_PID=/run/kiln-mainsail-watch.pid
+MS_PATCHED=/run/kiln-mainsail.patched
 
 ms_log() { logger -t kiln-mainsail "$*"; }
+
+# Mainsail's update store: let it keep Kiln's update entries. In the
+# minified bundle the line is
+#   if([`web`,`web_beta`,`python`,`executable`].includes(o)){await
+#   e(`storeWebRepo`,{...a,name:t});continue}
+# (names change per build); a kiln_os / kiln_app branch goes in front.
+# Files stay owned by klipper (rewritten in place), so Moonraker can
+# still update Mainsail. Once per bundle: MS_PATCHED holds index.html's
+# inode. A bundle still being unpacked (Mainsail update) gets 10 tries.
+ms_tries=0
+ms_patch() {
+	ms_ino=$(ls -i $MS_ROOT/index.html 2>/dev/null | awk '{print $1}')
+	[ -n "$ms_ino" ] || return
+	[ "$(cat $MS_PATCHED 2>/dev/null)" = "$ms_ino" ] && return
+	ms_js=$(grep -l 'storeWebRepo`,{' $MS_ROOT/assets/*.js 2>/dev/null | head -n 1)
+	if [ -z "$ms_js" ]; then
+		ms_tries=$((ms_tries + 1))
+		[ $ms_tries -lt 10 ] && return
+		ms_log "Mainsail's update store not found: Kiln OS updates not listed"
+		echo "$ms_ino" > $MS_PATCHED; ms_tries=0; return
+	fi
+	echo "$ms_ino" > $MS_PATCHED; ms_tries=0
+	grep -q '`kiln_os`' "$ms_js" && return
+	ms_id='([A-Za-z_$][A-Za-z0-9_$]*)'
+	sed -E 's/if\(\[`web`,`web_beta`,`python`,`executable`\]\.includes\('"$ms_id"'\)\)\{await '"$ms_id"'\(`storeWebRepo`,\{\.\.\.'"$ms_id"',name:'"$ms_id"'\}\);continue\}/if([`kiln_os`,`kiln_app`].includes(\1)){let kiln_u=(\3.remote_url||``).split(`\/`);await \2(`storeWebRepo`,{owner:kiln_u[3],repo_name:kiln_u[4],...\3,configured_type:`web`,name:\4});continue}&/' \
+		"$ms_js" > "$ms_js.kiln"
+	if grep -q '`kiln_os`' "$ms_js.kiln"; then
+		cat "$ms_js.kiln" > "$ms_js"
+		# the service worker caches the file by name (revision null): a
+		# revision makes browsers fetch the patched copy
+		ms_f=assets/${ms_js##*/}
+		if [ -f $MS_ROOT/sw.js ]; then
+			sed "s|url:\"$ms_f\",revision:null|url:\"$ms_f\",revision:\"kiln-$ms_ino\"|" \
+				$MS_ROOT/sw.js > $MS_ROOT/sw.js.kiln
+			cat $MS_ROOT/sw.js.kiln > $MS_ROOT/sw.js
+			rm -f $MS_ROOT/sw.js.kiln
+		fi
+		ms_log "Mainsail patched: lists Kiln OS updates"
+	else
+		ms_log "Mainsail's update store changed shape: Kiln OS updates not listed"
+	fi
+	rm -f "$ms_js.kiln"
+}
 
 # nginx's master process runs with config $1
 ms_running_with() {
@@ -66,6 +119,10 @@ ms_build() {
 			if (mainsail && l ~ /include[ \t]+\/run\/nginx\/fluidd-root\.conf;/) {
 				sub(/include.*/, "root " ms ";", l); found_root = 1
 			}
+			# Mainsail assets revalidated (304s), not cached 30 days:
+			# browsers get the bundle ms_patch rewrote under the same name
+			if (mainsail && l ~ /expires[ \t]+30d;/)
+				sub(/expires.*/, "add_header Cache-Control \"no-cache\";", l)
 			if (port81 && sub(/listen[ \t]+80[ \t]+default_server;/, "listen 81;", l))
 				found_listen = 1
 			print l
@@ -95,6 +152,7 @@ ms_build() {
 
 ms_on() {
 	[ -f $MS_ROOT/index.html ] || { ms_log "no Mainsail in $MS_ROOT"; return; }
+	ms_patch
 	mkdir -p /run/nginx
 	ms_ui=$(ms_port80)
 	if ! ms_build $ms_ui; then
@@ -123,6 +181,7 @@ ms_on() {
 ms_watch() {
 	ms_last=$(ms_port80)
 	while sleep 3; do
+		ms_patch
 		ms_now=$(ms_port80)
 		[ "$ms_now" = "$ms_last" ] && continue
 		ms_last=$ms_now

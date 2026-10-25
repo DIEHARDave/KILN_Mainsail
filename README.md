@@ -83,6 +83,15 @@ small root watcher (`mainsail-hook.sh watch`, once per boot) that checks
 `variables.cfg` every 3 seconds and rebuilds the config when the value
 changes. The file is only parsed, never run.
 
+**Kiln OS updates in Mainsail.** Kiln lists its own updates (`Kiln OS`,
+`klipper`, `moonraker`) under types Mainsail doesn't know, so plain
+Mainsail hides them; Fluidd shows them. The hook patches Mainsail's
+bundle in place so it lists them like any web client: version, Update
+button, release link. The watcher patches again after a Mainsail update.
+On the Mainsail port, `/assets/` is revalidated instead of cached for
+30 days, so browsers load the patched file. If a Mainsail release changes
+that code, the patch is skipped and `/var/log/messages` says so.
+
 If Kiln's nginx.conf ever changes shape, or the check fails, nothing is
 switched: Fluidd stays on port 80, and `/var/log/messages` has a
 `kiln-mainsail` line saying why.
@@ -102,7 +111,8 @@ file; the two don't interfere.
 
 **Updating from 1.0.0:** `WEB` needs the new hook. Run `install.sh` once
 more as root after the update; until then `WEB` saves the setting but
-nothing applies it.
+nothing applies it. The same goes for the Kiln OS entries in Mainsail
+(hook version 3).
 
 ## Uninstall
 
