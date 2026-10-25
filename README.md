@@ -16,6 +16,13 @@ separately: each UI has its own.
 Mainsail is updated from the web UI (Software Updates, `mainsail`), like
 Kiln's own Fluidd.
 
+## Swapping the ports: `WEB`
+
+Run `WEB` in the console to swap the two: Fluidd on port 80, Mainsail on
+port 81. Run it again to swap back. nginx restarts with the new order
+within about 3 seconds, so reload the page. The choice is kept across
+reboots (`web_port80` in `variables.cfg`).
+
 ## Install
 
 Two parts: the plugin itself (runs as user `klipper`), and a root part
@@ -69,6 +76,13 @@ owned by root) does this at boot:
    uses Kiln's pid file, so `S63nginx stop` and `S63nginx reload` still
    work.
 
+When `WEB` has saved `web_port80 = 'fluidd'`, the two roots are swapped:
+port 80 keeps Kiln's Fluidd line, port 81 gets Mainsail's. The macro
+runs as user `klipper` and can't restart nginx, so the hook also starts a
+small root watcher (`mainsail-hook.sh watch`, once per boot) that checks
+`variables.cfg` every 3 seconds and rebuilds the config when the value
+changes. The file is only parsed, never run.
+
 If Kiln's nginx.conf ever changes shape, or the check fails, nothing is
 switched: Fluidd stays on port 80, and `/var/log/messages` has a
 `kiln-mainsail` line saying why.
@@ -85,6 +99,10 @@ file; the two don't interfere.
 `/etc/init.d/S63nginx restart` brings back Kiln's plain nginx (Fluidd on
 80) until the next boot. To switch back without rebooting, run
 `sh /data/ad5x/mainsail-hook.sh`.
+
+**Updating from 1.0.0:** `WEB` needs the new hook. Run `install.sh` once
+more as root after the update; until then `WEB` saves the setting but
+nothing applies it.
 
 ## Uninstall
 

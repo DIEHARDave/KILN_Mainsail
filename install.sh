@@ -9,7 +9,8 @@
 # - copies root/mainsail-hook.sh to /data/ad5x/mainsail-hook.sh
 #   (root-owned, so the clone that Moonraker updates as klipper is never
 #   run as root) and adds its line to /data/ad5x/camera.conf
-# - switches nginx: Mainsail on port 80, Fluidd on port 81
+# - switches nginx: Mainsail on port 80, Fluidd on port 81 (or the other
+#   way round, if WEB swapped them), and starts the watcher WEB relies on
 set -e
 # Root shells here have umask 077: nginx (www-data) must read Mainsail
 umask 022
@@ -57,11 +58,17 @@ if ! grep -qxF "$LINE" $CONF 2>/dev/null; then
 	echo "added the hook to $CONF"
 fi
 
-# A new hook version: rebuild the nginx config from it
-sh $HOOK off
+# A new hook version: its watcher runs the old code, stop it (the hook
+# starts the new one), and rebuild the nginx config from it
+start-stop-daemon -K -q -p /run/kiln-mainsail-watch.pid 2>/dev/null || true
+rm -f /run/kiln-mainsail-watch.pid
 sh $HOOK
 if [ -f /run/nginx/kiln-mainsail.conf ]; then
-	echo "Mainsail on port 80, Fluidd on port 81"
+	if grep -qs "^web_port80 = .fluidd" /home/klipper/printer_data/config/variables.cfg; then
+		echo "Fluidd on port 80, Mainsail on port 81 (WEB swaps them)"
+	else
+		echo "Mainsail on port 80, Fluidd on port 81 (WEB swaps them)"
+	fi
 else
 	echo "nginx not switched, Fluidd stays on port 80: see /var/log/messages (kiln-mainsail)"
 fi
