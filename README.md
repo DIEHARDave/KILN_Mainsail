@@ -9,6 +9,17 @@ to Fluidd:
 | 80 (`http://<printer>/`) | Mainsail |
 | 81 (`http://<printer>:81/`) | Fluidd |
 
+> **Kiln OS v0.0.25 and newer: may not work properly.** This plugin
+> needs a root boot hook. Kiln OS has no proper one, so `install.sh`
+> adds a line to `/data/ad5x/camera.conf`, which Kiln's camera service
+> used to run as a shell script at boot. Since v0.0.25 Kiln reads that
+> file as settings only, so the hook no longer runs at boot. After a
+> reboot Fluidd is back on port 80, nothing answers on port 81, `WEB`
+> does nothing, and Mainsail doesn't list Kiln OS updates. Workaround
+> until Kiln offers a boot hook: after each reboot, run `sh
+> /data/ad5x/mainsail-hook.sh` as root. A proper hook was requested in
+> [djvalic/kiln-os#13](https://github.com/djvalic/kiln-os/issues/13).
+
 Both talk to the same Moonraker and Klipper and show the same cameras
 (`/webcam/`, ...) and touch screen view (`/screen/`). Settings are kept
 separately: each UI has its own.
