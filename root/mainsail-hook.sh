@@ -19,12 +19,13 @@
 # Mainsail on 81). A watcher ("mainsail-hook.sh watch", started once per
 # boot) applies a change within about 3 s.
 #
-# Kiln OS has no general root boot hook; S64ad5x-camera (root, after
-# S63nginx) sources /data/ad5x/camera.conf, so install.sh adds
+# Kiln OS has no root boot hook for plugins; S65ad5x-screen (root, after
+# S63nginx) sources /data/ad5x/screen.conf, so install.sh adds
 #   . /data/ad5x/mainsail-hook.sh
-# there. It is sourced again on every camera restart: does nothing when
-# nginx already runs the same config. Names are prefixed (ms_): it runs
-# inside S64ad5x-camera's start().
+# there (a stopgap: camera.conf, used up to version 3, has been read as
+# settings only since Kiln v0.0.24). It is sourced again on every screen
+# restart: does nothing when nginx already runs the same config. Names
+# are prefixed (ms_): it runs inside S65ad5x-screen's start().
 #
 # Kiln OS's own update entries ("Kiln OS", klipper, moonraker) have
 # configured_type kiln_os / kiln_app. Fluidd lists any type, Mainsail
@@ -38,7 +39,7 @@
 # "mainsail-hook.sh off": back to Kiln's own nginx (uninstall.sh).
 #####################################################################
 
-MS_HOOK_VERSION=3
+MS_HOOK_VERSION=4
 
 MS_ROOT=/data/ad5x/web/mainsail
 MS_KILN_CONF=/etc/nginx/nginx.conf

@@ -9,16 +9,16 @@ to Fluidd:
 | 80 (`http://<printer>/`) | Mainsail |
 | 81 (`http://<printer>:81/`) | Fluidd |
 
-> **Kiln OS v0.0.25 and newer: may not work properly.** This plugin
-> needs a root boot hook. Kiln OS has no proper one, so `install.sh`
-> adds a line to `/data/ad5x/camera.conf`, which Kiln's camera service
-> used to run as a shell script at boot. Since v0.0.25 Kiln reads that
-> file as settings only, so the hook no longer runs at boot. After a
-> reboot Fluidd is back on port 80, nothing answers on port 81, `WEB`
-> does nothing, and Mainsail doesn't list Kiln OS updates. Workaround
-> until Kiln offers a boot hook: after each reboot, run `sh
-> /data/ad5x/mainsail-hook.sh` as root. A proper hook was requested in
-> [djvalic/kiln-os#13](https://github.com/djvalic/kiln-os/issues/13).
+> **The boot hook is a stopgap.** This plugin needs a root boot hook,
+> and Kiln OS has none for plugins. `camera.conf`, used before, has been
+> read as settings only since Kiln v0.0.24, so `install.sh` now uses
+> `/data/ad5x/screen.conf`, which Kiln's screen service still runs as a
+> shell script at boot. A later Kiln release may close that too; then,
+> after each reboot, Fluidd is back on port 80 until you run
+> `sh /data/ad5x/mainsail-hook.sh` as root. A proper hook was requested
+> in [djvalic/kiln-os#13](https://github.com/djvalic/kiln-os/issues/13).
+> Installed before this change? Run `install.sh` again as root (it moves
+> the line out of `camera.conf`).
 
 Both talk to the same Moonraker and Klipper and show the same cameras
 (`/webcam/`, ...) and touch screen view (`/screen/`). Settings are kept
@@ -107,14 +107,15 @@ If Kiln's nginx.conf ever changes shape, or the check fails, nothing is
 switched: Fluidd stays on port 80, and `/var/log/messages` has a
 `kiln-mainsail` line saying why.
 
-**Boot hook.** Kiln OS has no general root boot hook. Its camera service
-(`S64ad5x-camera`, root, runs after nginx starts) sources
-`/data/ad5x/camera.conf`, so `install.sh` adds
-`. /data/ad5x/mainsail-hook.sh` there. The camera service runs this
-whether or not you have a camera. A camera restart sources it again, but
-it does nothing while nginx already runs the Mainsail config.
-[KILN_Camera](https://github.com/DIEHARDave/KILN_Camera) uses the same
-file; the two don't interfere.
+**Boot hook.** Kiln OS has no root boot hook for plugins. Its screen
+service (`S65ad5x-screen`, root, runs after nginx starts) sources
+`/data/ad5x/screen.conf`, so `install.sh` adds
+`. /data/ad5x/mainsail-hook.sh` there. The screen service runs this
+even with the screen stream switched off (`SCREEN=off`). A screen
+restart sources it again, but it does nothing while nginx already runs
+the Mainsail config. [KILN_Camera](https://github.com/DIEHARDave/KILN_Camera)
+and [KILN_NFC](https://github.com/DIEHARDave/KILN_NFC) use the same
+file; they don't interfere.
 
 `/etc/init.d/S63nginx restart` brings back Kiln's plain nginx (Fluidd on
 80) until the next boot. To switch back without rebooting, run

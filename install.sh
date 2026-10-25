@@ -8,24 +8,28 @@
 #   Software Updates)
 # - copies root/mainsail-hook.sh to /data/ad5x/mainsail-hook.sh
 #   (root-owned, so the clone that Moonraker updates as klipper is never
-#   run as root) and adds its line to /data/ad5x/camera.conf
+#   run as root) and adds its line to /data/ad5x/screen.conf (sourced as
+#   root at every boot by Kiln's screen service; a stopgap, since Kiln
+#   has no plugin boot hook and v0.0.24+ no longer runs camera.conf)
 # - switches nginx: Mainsail on port 80, Fluidd on port 81 (or the other
 #   way round, if WEB swapped them), and starts the watcher WEB relies on
 set -e
 # Root shells here have umask 077: nginx (www-data) must read Mainsail
 umask 022
 HOOK=/data/ad5x/mainsail-hook.sh
-CONF=/data/ad5x/camera.conf
+CONF=/data/ad5x/screen.conf
+OLD_CONF=/data/ad5x/camera.conf
 WEB=/data/ad5x/web/mainsail
 URL=https://github.com/mainsail-crew/mainsail/releases/latest/download/mainsail.zip
 LINE=". $HOOK"
 D=$(cd "$(dirname "$0")" && pwd)
 
 [ "$(id -u)" = 0 ] || { echo "install.sh: run as root"; exit 1; }
-grep -qs "$CONF" /etc/init.d/S64ad5x-camera &&
+grep -qs '^[[:space:]]*\[ -f \$CONF \] && \. \$CONF' /etc/init.d/S65ad5x-screen &&
+	grep -qs "^CONF=$CONF\$" /etc/init.d/S65ad5x-screen &&
 	grep -qs fluidd-root.conf /etc/nginx/nginx.conf || {
 	echo "install.sh: not the Kiln OS this was written for"
-	echo "  (S64ad5x-camera must read $CONF, nginx.conf include fluidd-root.conf)"
+	echo "  (S65ad5x-screen must source $CONF, nginx.conf include fluidd-root.conf)"
 	exit 1
 }
 
@@ -50,13 +54,22 @@ chmod 755 $HOOK.new
 mv $HOOK.new $HOOK
 echo "installed $HOOK (version $(sed -n 's/^MS_HOOK_VERSION=//p' $HOOK))"
 
+# Hook versions up to 3 were sourced from camera.conf, which Kiln now
+# reads as settings only (and logs our line as skipped)
+if grep -qxF "$LINE" $OLD_CONF 2>/dev/null; then
+	sed -i -e '/^# KILN_Mainsail plugin/d' -e "\\|^\\. $HOOK\$|d" $OLD_CONF
+	grep -qv '^[[:space:]]*\(#.*\)\{0,1\}$' $OLD_CONF || rm -f $OLD_CONF
+	echo "removed the old hook line from $OLD_CONF"
+fi
+
 if ! grep -qxF "$LINE" $CONF 2>/dev/null; then
 	[ -f $CONF ] && cp -p $CONF $CONF.before-kiln-mainsail
 	printf '# KILN_Mainsail plugin (uninstall.sh removes these two lines)\n%s\n' \
 		"$LINE" >> $CONF
-	chmod 644 $CONF
 	echo "added the hook to $CONF"
 fi
+chown root:root $CONF
+chmod 644 $CONF
 
 # A new hook version: its watcher runs the old code, stop it (the hook
 # starts the new one), and rebuild the nginx config from it
