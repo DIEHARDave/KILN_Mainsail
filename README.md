@@ -114,7 +114,7 @@ service (`S65ad5x-screen`, root, runs after nginx starts) sources
 even with the screen stream switched off (`SCREEN=off`). A screen
 restart sources it again, but it does nothing while nginx already runs
 the Mainsail config. [KILN_Camera](https://github.com/DIEHARDave/KILN_Camera)
-and [KILN_NFC](https://github.com/DIEHARDave/KILN_NFC) use the same
+and [FF_NFC](https://github.com/DIEHARDave/FF_NFC) use the same
 file; they don't interfere.
 
 `/etc/init.d/S63nginx restart` brings back Kiln's plain nginx (Fluidd on
