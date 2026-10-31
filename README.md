@@ -1,5 +1,7 @@
 # KILN_Mainsail
 
+> **Parts:** the printers, boards, readers and other gear that go with this project are listed at [projects.die-hard.net/gear](https://projects.die-hard.net/gear) (Amazon affiliate links).
+
 A [Kiln OS](https://github.com/djvalic/kiln-os) plugin for the Flashforge
 AD5X that runs [Mainsail](https://github.com/mainsail-crew/mainsail) next
 to Fluidd:
